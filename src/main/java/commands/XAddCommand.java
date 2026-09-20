@@ -26,155 +26,178 @@ public class XAddCommand implements Command {
         String key = args.get(0);
         String id = args.get(1);
 
-        // field/value pairs must be even
         if ((args.size() - 2) % 2 != 0) {
             return;
         }
 
-        Map<String, List<StreamEntry>> streams = redisData.getStreams();
+        synchronized (redisData) {
 
-        List<StreamEntry> stream =
-                streams.computeIfAbsent(key, k -> new ArrayList<>());
+            Map<String, List<StreamEntry>> streams =
+                    redisData.getStreams();
 
-        /*
-         * XADD key * field value
-         *
-         * Fully auto-generate:
-         * timestamp-sequence
-         */
-        if (id.equals("*")) {
+            List<StreamEntry> stream =
+                    streams.computeIfAbsent(
+                            key,
+                            k -> new ArrayList<>()
+                    );
 
-            long currentTime = System.currentTimeMillis();
-            long sequenceNumber = 0;
+            /*
+             * XADD key * field value
+             */
+            if (id.equals("*")) {
 
-            // If the last entry has the same timestamp,
-            // increment its sequence number.
-            if (!stream.isEmpty()) {
+                long currentTime =
+                        System.currentTimeMillis();
 
-                StreamEntry lastEntry =
-                        stream.get(stream.size() - 1);
+                long sequenceNumber = 0;
 
-                String lastId = lastEntry.getId();
+                if (!stream.isEmpty()) {
 
-                String[] parts = lastId.split("-");
+                    StreamEntry lastEntry =
+                            stream.get(stream.size() - 1);
 
-                long lastTime = Long.parseLong(parts[0]);
-                long lastSequence = Long.parseLong(parts[1]);
+                    String[] parts =
+                            lastEntry.getId().split("-");
 
-                if (currentTime == lastTime) {
-                    sequenceNumber = lastSequence + 1;
+                    long lastTime =
+                            Long.parseLong(parts[0]);
+
+                    long lastSequence =
+                            Long.parseLong(parts[1]);
+
+                    /*
+                     * Make generated IDs strictly increasing.
+                     */
+                    if (currentTime < lastTime) {
+                        currentTime = lastTime;
+                        sequenceNumber = lastSequence + 1;
+
+                    } else if (currentTime == lastTime) {
+                        sequenceNumber = lastSequence + 1;
+                    }
                 }
+
+                id = currentTime + "-" + sequenceNumber;
             }
 
-            id = currentTime + "-" + sequenceNumber;
-        }
+            /*
+             * XADD key <milliseconds>-* field value
+             */
+            else if (id.endsWith("-*")) {
 
-        /*
-         * Handle:
-         *
-         * XADD key 1526919030474-* field value
-         */
-        else if (id.endsWith("-*")) {
+                String timePart =
+                        id.substring(
+                                0,
+                                id.length() - 2
+                        );
 
-            String timePart =
-                    id.substring(0, id.length() - 2);
+                long millisecondsTime =
+                        Long.parseLong(timePart);
 
-            long millisecondsTime =
-                    Long.parseLong(timePart);
+                long sequenceNumber = 0;
 
-            long sequenceNumber = 0;
+                if (!stream.isEmpty()) {
 
-            if (!stream.isEmpty()) {
+                    StreamEntry lastEntry =
+                            stream.get(stream.size() - 1);
 
-                StreamEntry lastEntry =
-                        stream.get(stream.size() - 1);
+                    String[] parts =
+                            lastEntry.getId().split("-");
 
-                String[] parts =
-                        lastEntry.getId().split("-");
+                    long lastTime =
+                            Long.parseLong(parts[0]);
 
-                long lastTime =
+                    long lastSequence =
+                            Long.parseLong(parts[1]);
+
+                    if (millisecondsTime == lastTime) {
+                        sequenceNumber =
+                                lastSequence + 1;
+                    }
+                }
+
+                if (millisecondsTime == 0
+                        && sequenceNumber == 0) {
+
+                    sequenceNumber = 1;
+                }
+
+                id = millisecondsTime
+                        + "-"
+                        + sequenceNumber;
+            }
+
+            else {
+
+                String[] parts = id.split("-");
+
+                long millisecondsTime =
                         Long.parseLong(parts[0]);
 
-                long lastSequence =
+                long sequenceNumber =
                         Long.parseLong(parts[1]);
 
-                if (millisecondsTime == lastTime) {
-                    sequenceNumber = lastSequence + 1;
-                }
-            }
-
-            // 0-0 is not a valid first generated ID
-            if (millisecondsTime == 0 && sequenceNumber == 0) {
-                sequenceNumber = 1;
-            }
-
-            id = millisecondsTime + "-" + sequenceNumber;
-        }
-
-        /*
-         * Explicit ID:
-         *
-         * XADD key 1526919030474-0 field value
-         */
-        else {
-
-            String[] parts = id.split("-");
-
-            long millisecondsTime =
-                    Long.parseLong(parts[0]);
-
-            long sequenceNumber =
-                    Long.parseLong(parts[1]);
-
-            // First stream ID cannot be 0-0
-            if (millisecondsTime == 0 && sequenceNumber == 0) {
-                RespUtil.writeSimpleError(
-                        outputStream,
-                        "The ID specified in XADD must be greater than 0-0"
-                );
-                return;
-            }
-
-            // Make sure ID is greater than stream's last ID
-            if (!stream.isEmpty()) {
-
-                StreamEntry lastEntry =
-                        stream.get(stream.size() - 1);
-
-                String[] lastParts =
-                        lastEntry.getId().split("-");
-
-                long lastTime =
-                        Long.parseLong(lastParts[0]);
-
-                long lastSequence =
-                        Long.parseLong(lastParts[1]);
-
-                if (millisecondsTime < lastTime ||
-                        (millisecondsTime == lastTime &&
-                                sequenceNumber <= lastSequence)) {
+                if (millisecondsTime == 0
+                        && sequenceNumber == 0) {
 
                     RespUtil.writeSimpleError(
                             outputStream,
-                            "The ID specified in XADD is equal or smaller than the target stream top item"
+                            "The ID specified in XADD must be greater than 0-0"
                     );
+
                     return;
                 }
+
+                if (!stream.isEmpty()) {
+
+                    StreamEntry lastEntry =
+                            stream.get(stream.size() - 1);
+
+                    String[] lastParts =
+                            lastEntry.getId().split("-");
+
+                    long lastTime =
+                            Long.parseLong(lastParts[0]);
+
+                    long lastSequence =
+                            Long.parseLong(lastParts[1]);
+
+                    if (millisecondsTime < lastTime
+                            ||
+                            (millisecondsTime == lastTime
+                                    && sequenceNumber
+                                    <= lastSequence)) {
+
+                        RespUtil.writeSimpleError(
+                                outputStream,
+                                "The ID specified in XADD is equal or smaller than the target stream top item"
+                        );
+
+                        return;
+                    }
+                }
             }
+
+            StreamEntry entry =
+                    new StreamEntry(id);
+
+            for (int i = 2;
+                 i < args.size();
+                 i += 2) {
+
+                String field = args.get(i);
+                String value = args.get(i + 1);
+
+                entry.addField(field, value);
+            }
+
+            stream.add(entry);
+
+            redisData.notifyAll();
+            RespUtil.writeBulkString(
+                    outputStream,
+                    id
+            );
         }
-
-        StreamEntry entry = new StreamEntry(id);
-
-        for (int i = 2; i < args.size(); i += 2) {
-
-            String field = args.get(i);
-            String value = args.get(i + 1);
-
-            entry.addField(field, value);
-        }
-
-        stream.add(entry);
-
-        RespUtil.writeBulkString(outputStream, id);
     }
 }

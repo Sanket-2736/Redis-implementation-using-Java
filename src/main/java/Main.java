@@ -93,14 +93,6 @@ public class Main {
                     clientSocket.getOutputStream();
 
             while (true) {
-
-                /*
-                 * Read RESP array header.
-                 *
-                 * Example:
-                 * *3
-                 */
-
                 String arrayLine =
                         readLine(inputStream);
 
@@ -112,11 +104,6 @@ public class Main {
                         Integer.parseInt(
                                 arrayLine.substring(1)
                         );
-
-                /*
-                 * Read all elements of
-                 * the RESP array.
-                 */
 
                 List<String> elements =
                         new ArrayList<>();
@@ -134,28 +121,15 @@ public class Main {
                     continue;
                 }
 
-                /*
-                 * First element is command.
-                 */
-
                 String commandName =
                         elements.get(0)
                                 .toUpperCase();
-
-                /*
-                 * Remaining elements are
-                 * command arguments.
-                 */
 
                 List<String> args =
                         elements.subList(
                                 1,
                                 elements.size()
                         );
-
-                /*
-                 * Find command.
-                 */
 
                 Command command =
                         commandRegistry.getCommand(
