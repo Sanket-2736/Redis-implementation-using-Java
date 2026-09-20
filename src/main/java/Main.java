@@ -1,3 +1,7 @@
+import commands.Command;
+import commands.CommandRegistry;
+import storage.RedisData;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -5,26 +9,32 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class Main {
 
-    private static Map<String, String> data = new HashMap<>();
-    private static Map<String, Long> expiry = new HashMap<>();
-    private static Map<String, List<String>> lists = new HashMap<>();
+    private static final RedisData redisData =
+            new RedisData();
 
-    private static String readLine(InputStream inputStream) throws IOException {
+    private static final CommandRegistry commandRegistry =
+            new CommandRegistry();
 
-        StringBuilder line = new StringBuilder();
+    // Read a line ending with \r\n
+    private static String readLine(
+            InputStream inputStream
+    ) throws IOException {
+
+        StringBuilder line =
+                new StringBuilder();
 
         int ch;
 
         while ((ch = inputStream.read()) != -1) {
 
             if (ch == '\r') {
+
                 inputStream.read(); // consume '\n'
+
                 return line.toString();
             }
 
@@ -34,362 +44,125 @@ public class Main {
         return null;
     }
 
-    // Read a RESP bulk string
-    private static String readBulkString(InputStream inputStream) throws IOException {
+    // Read RESP bulk string
+    private static String readBulkString(
+            InputStream inputStream
+    ) throws IOException {
 
-        String line = readLine(inputStream);
+        String line =
+                readLine(inputStream);
 
-        int length = Integer.parseInt(line.substring(1));
+        if (line == null) {
+            return null;
+        }
 
-        byte[] data = inputStream.readNBytes(length);
+        int length =
+                Integer.parseInt(
+                        line.substring(1)
+                );
 
-        // Consume "\r\n"
+        byte[] data =
+                inputStream.readNBytes(length);
+
+        // Consume \r\n
         inputStream.read();
         inputStream.read();
 
-        return new String(data, StandardCharsets.UTF_8);
+        return new String(
+                data,
+                StandardCharsets.UTF_8
+        );
     }
 
-    private static void handleClient(Socket clientSocket) {
+    private static void handleClient(
+            Socket clientSocket
+    ) {
 
         try {
-            OutputStream outputStream = clientSocket.getOutputStream();
-            InputStream inputStream = clientSocket.getInputStream();
+
+            InputStream inputStream =
+                    clientSocket.getInputStream();
+
+            OutputStream outputStream =
+                    clientSocket.getOutputStream();
 
             while (true) {
 
-                String arrayLine = readLine(inputStream);
+                /*
+                 * Read RESP array header.
+                 *
+                 * Example:
+                 * *3
+                 */
+
+                String arrayLine =
+                        readLine(inputStream);
 
                 if (arrayLine == null) {
                     break;
                 }
 
-                // Remove '*' and get number of elements
                 int numberOfElements =
-                        Integer.parseInt(arrayLine.substring(1));
-
-                // First element is always the command
-                String command = readBulkString(inputStream);
-
-                // ---------------- PING ----------------
-
-                if (command.equalsIgnoreCase("PING")) {
-
-                    if (numberOfElements == 1) {
-
-                        outputStream.write(
-                                "+PONG\r\n".getBytes(StandardCharsets.UTF_8)
+                        Integer.parseInt(
+                                arrayLine.substring(1)
                         );
 
-                    } else if (numberOfElements == 2) {
+                /*
+                 * Read all elements of
+                 * the RESP array.
+                 */
 
-                        String argument =
-                                readBulkString(inputStream);
+                List<String> elements =
+                        new ArrayList<>();
 
-                        byte[] data =
-                                argument.getBytes(StandardCharsets.UTF_8);
+                for (int i = 0;
+                     i < numberOfElements;
+                     i++) {
 
-                        outputStream.write(
-                                ("$" + data.length + "\r\n")
-                                        .getBytes(StandardCharsets.UTF_8)
-                        );
-
-                        outputStream.write(data);
-
-                        outputStream.write(
-                                "\r\n".getBytes(StandardCharsets.UTF_8)
-                        );
-                    }
+                    elements.add(
+                            readBulkString(inputStream)
+                    );
                 }
 
-                // ---------------- ECHO ----------------
-
-                else if (command.equalsIgnoreCase("ECHO")) {
-
-                    if (numberOfElements == 2) {
-
-                        String argument =
-                                readBulkString(inputStream);
-
-                        byte[] data =
-                                argument.getBytes(StandardCharsets.UTF_8);
-
-                        outputStream.write(
-                                ("$" + data.length + "\r\n")
-                                        .getBytes(StandardCharsets.UTF_8)
-                        );
-
-                        outputStream.write(data);
-
-                        outputStream.write(
-                                "\r\n".getBytes(StandardCharsets.UTF_8)
-                        );
-                    }
+                if (elements.isEmpty()) {
+                    continue;
                 }
 
-                // ---------------- SET ----------------
+                /*
+                 * First element is command.
+                 */
 
-                else if (command.equalsIgnoreCase("SET")) {
+                String commandName =
+                        elements.get(0)
+                                .toUpperCase();
 
-                    if (numberOfElements >= 3) {
+                /*
+                 * Remaining elements are
+                 * command arguments.
+                 */
 
-                        String key =
-                                readBulkString(inputStream);
-
-                        String value =
-                                readBulkString(inputStream);
-
-                        data.put(key, value);
-
-                        // Remove old expiry if key is overwritten
-                        expiry.remove(key);
-
-                        // SET key value EX/PX time
-                        if (numberOfElements >= 5) {
-
-                            String option =
-                                    readBulkString(inputStream);
-
-                            String time =
-                                    readBulkString(inputStream);
-
-                            long expiryTime =
-                                    System.currentTimeMillis();
-
-                            if (option.equalsIgnoreCase("EX")) {
-
-                                // Time in seconds
-                                expiryTime +=
-                                        Long.parseLong(time) * 1000;
-
-                                expiry.put(key, expiryTime);
-
-                            } else if (option.equalsIgnoreCase("PX")) {
-
-                                // Time in milliseconds
-                                expiryTime +=
-                                        Long.parseLong(time);
-
-                                expiry.put(key, expiryTime);
-                            }
-                        }
-
-                        outputStream.write(
-                                "+OK\r\n".getBytes(StandardCharsets.UTF_8)
+                List<String> args =
+                        elements.subList(
+                                1,
+                                elements.size()
                         );
-                    }
-                }
 
-                // ---------------- GET ----------------
+                /*
+                 * Find command.
+                 */
 
-                else if (command.equalsIgnoreCase("GET")) {
-
-                    if (numberOfElements == 2) {
-
-                        String key =
-                                readBulkString(inputStream);
-
-                        // Check expiry first
-                        if (expiry.containsKey(key)) {
-
-                            long expiryTime =
-                                    expiry.get(key);
-
-                            if (expiryTime <= System.currentTimeMillis()) {
-
-                                data.remove(key);
-                                expiry.remove(key);
-                            }
-                        }
-
-                        String val = data.get(key);
-
-                        // Key doesn't exist OR key has expired
-                        if (val == null) {
-
-                            outputStream.write(
-                                    "$-1\r\n"
-                                            .getBytes(StandardCharsets.UTF_8)
-                            );
-
-                        } else {
-
-                            byte[] value =
-                                    val.getBytes(StandardCharsets.UTF_8);
-
-                            outputStream.write(
-                                    ("$" + value.length + "\r\n")
-                                            .getBytes(StandardCharsets.UTF_8)
-                            );
-
-                            outputStream.write(value);
-
-                            outputStream.write(
-                                    "\r\n"
-                                            .getBytes(StandardCharsets.UTF_8)
-                            );
-                        }
-                    }
-                }
-
-                // ---------------- RPUSH ----------------
-
-                else if (command.equalsIgnoreCase("RPUSH")) {
-
-                    if (numberOfElements >= 3) {
-
-                        String key =
-                                readBulkString(inputStream);
-
-                        List<String> list =
-                                lists.computeIfAbsent(
-                                        key,
-                                        k -> new ArrayList<>()
-                                );
-
-                        // Read and append all values
-                        for (int i = 2; i < numberOfElements; i++) {
-
-                            String value =
-                                    readBulkString(inputStream);
-
-                            list.add(value);
-                        }
-
-                        // Return new length of the list
-                        outputStream.write(
-                                (":" + list.size() + "\r\n")
-                                        .getBytes(StandardCharsets.UTF_8)
+                Command command =
+                        commandRegistry.getCommand(
+                                commandName
                         );
-                    }
-                }
 
-                // ---------------- LRANGE ----------------
+                if (command != null) {
 
-                else if (command.equalsIgnoreCase("LRANGE")) {
-
-                    if (numberOfElements == 4) {
-
-                        String key =
-                                readBulkString(inputStream);
-
-                        int start =
-                                Integer.parseInt(
-                                        readBulkString(inputStream)
-                                );
-
-                        int stop =
-                                Integer.parseInt(
-                                        readBulkString(inputStream)
-                                );
-
-                        List<String> list =
-                                lists.get(key);
-
-                        // List doesn't exist
-                        if (list == null) {
-
-                            outputStream.write(
-                                    "*0\r\n"
-                                            .getBytes(StandardCharsets.UTF_8)
-                            );
-
-                        } else {
-
-                            int listSize = list.size();
-
-                            /*
-                             * Convert negative indexes.
-                             *
-                             * -1 -> last element
-                             * -2 -> second last
-                             * etc.
-                             */
-                            if (start < 0) {
-                                start = listSize + start;
-                            }
-
-                            if (stop < 0) {
-                                stop = listSize + stop;
-                            }
-
-                            // Negative index beyond the beginning
-                            if (start < 0) {
-                                start = 0;
-                            }
-
-                            if (stop < 0) {
-                                stop = 0;
-                            }
-
-                            /*
-                             * If start is outside the list
-                             * or start > stop, return empty array.
-                             */
-                            if (start >= listSize ||
-                                    start > stop) {
-
-                                outputStream.write(
-                                        "*0\r\n"
-                                                .getBytes(StandardCharsets.UTF_8)
-                                );
-
-                            } else {
-
-                                /*
-                                 * If stop is greater than or equal
-                                 * to list size, use the last element.
-                                 */
-                                stop =
-                                        Math.min(
-                                                stop,
-                                                listSize - 1
-                                        );
-
-                                int resultSize =
-                                        stop - start + 1;
-
-                                // RESP array header
-                                outputStream.write(
-                                        ("*" + resultSize + "\r\n")
-                                                .getBytes(
-                                                        StandardCharsets.UTF_8
-                                                )
-                                );
-
-                                // Write each element
-                                for (int i = start;
-                                     i <= stop;
-                                     i++) {
-
-                                    String value =
-                                            list.get(i);
-
-                                    byte[] bytes =
-                                            value.getBytes(
-                                                    StandardCharsets.UTF_8
-                                            );
-
-                                    // RESP bulk string header
-                                    outputStream.write(
-                                            ("$" + bytes.length + "\r\n")
-                                                    .getBytes(
-                                                            StandardCharsets.UTF_8
-                                                    )
-                                    );
-
-                                    outputStream.write(bytes);
-
-                                    outputStream.write(
-                                            "\r\n"
-                                                    .getBytes(
-                                                            StandardCharsets.UTF_8
-                                                    )
-                                    );
-                                }
-                            }
-                        }
-                    }
+                    command.execute(
+                            args,
+                            redisData,
+                            outputStream
+                    );
                 }
 
                 outputStream.flush();
@@ -400,7 +173,8 @@ public class Main {
         } catch (IOException e) {
 
             System.out.println(
-                    "Client IOException: " + e.getMessage()
+                    "Client IOException: "
+                            + e.getMessage()
             );
         }
     }
@@ -427,7 +201,10 @@ public class Main {
 
                 Thread clientThread =
                         new Thread(
-                                () -> handleClient(clientSocket)
+                                () ->
+                                        handleClient(
+                                                clientSocket
+                                        )
                         );
 
                 clientThread.start();
@@ -436,7 +213,8 @@ public class Main {
         } catch (IOException e) {
 
             System.out.println(
-                    "IOException: " + e.getMessage()
+                    "IOException: "
+                            + e.getMessage()
             );
         }
     }
