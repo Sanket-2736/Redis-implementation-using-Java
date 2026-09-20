@@ -1,5 +1,6 @@
 package commands;
 
+import commands.transactions.TransactionState;
 import storage.RedisData;
 
 import java.io.IOException;
@@ -11,6 +12,7 @@ public interface Command {
     void execute(
             List<String> args,
             RedisData redisData,
-            OutputStream outputStream
+            OutputStream outputStream,
+            TransactionState transactionState
     ) throws IOException;
 }

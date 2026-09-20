@@ -1,6 +1,8 @@
 import commands.Command;
 import commands.CommandRegistry;
+import commands.transactions.TransactionState;
 import storage.RedisData;
+import utils.RespUtil;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -86,6 +88,8 @@ public class Main {
 
         try {
 
+            TransactionState transactionState = new TransactionState();
+
             InputStream inputStream =
                     clientSocket.getInputStream();
 
@@ -137,12 +141,20 @@ public class Main {
                         );
 
                 if (command != null) {
-
-                    command.execute(
-                            args,
-                            redisData,
-                            outputStream
-                    );
+                    if (transactionState.isInTransaction() && !commandName.equalsIgnoreCase("EXEC") && !commandName.equalsIgnoreCase("MULTI")){
+                        transactionState.queueCommand(elements);
+                        RespUtil.writeSimpleString(
+                                outputStream,
+                                "QUEUED"
+                        );
+                    } else {
+                        command.execute(
+                                args,
+                                redisData,
+                                outputStream,
+                                transactionState
+                        );
+                    }
                 }
 
                 outputStream.flush();

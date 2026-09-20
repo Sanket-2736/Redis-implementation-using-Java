@@ -1,5 +1,9 @@
 package commands;
 
+import commands.transactions.ExecCommand;
+import commands.transactions.IncrCommand;
+import commands.transactions.MultiCommand;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -23,9 +27,15 @@ public class CommandRegistry {
 
         commands.put("TYPE", new TypeCommand());
 
+//        Stream commands
         commands.put("XADD", new XAddCommand());
         commands.put("XRANGE", new XRangeCommand());
         commands.put("XREAD", new XReadCommand());
+
+//        transaction commands
+        commands.put("INCR", new IncrCommand());
+        commands.put("MULTI", new MultiCommand());
+        commands.put("EXEC", new ExecCommand(this));
     }
 
     public Command getCommand(String command) {

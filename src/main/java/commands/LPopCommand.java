@@ -1,5 +1,6 @@
 package commands;
 
+import commands.transactions.TransactionState;
 import storage.RedisData;
 import utils.RespUtil;
 
@@ -11,7 +12,8 @@ import java.util.Map;
 
 public class LPopCommand implements Command{
     @Override
-    public void execute(List<String> args, RedisData redisData, OutputStream outputStream) throws IOException {
+    public void execute(List<String> args, RedisData redisData, OutputStream outputStream,
+                        TransactionState transactionState) throws IOException {
         if(args.isEmpty()) return;
 
         String key = args.get(0);

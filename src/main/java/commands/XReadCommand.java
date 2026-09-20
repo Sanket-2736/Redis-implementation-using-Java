@@ -1,5 +1,6 @@
 package commands;
 
+import commands.transactions.TransactionState;
 import storage.RedisData;
 import storage.StreamEntry;
 import utils.RespUtil;
@@ -16,7 +17,8 @@ public class XReadCommand implements Command {
     public void execute(
             List<String> args,
             RedisData redisData,
-            OutputStream outputStream
+            OutputStream outputStream,
+            TransactionState transactionState
     ) throws IOException {
 
         boolean blocking = false;

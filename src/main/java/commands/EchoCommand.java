@@ -1,5 +1,6 @@
 package commands;
 
+import commands.transactions.TransactionState;
 import storage.RedisData;
 import utils.RespUtil;
 
@@ -13,7 +14,8 @@ public class EchoCommand implements Command {
     public void execute(
             List<String> args,
             RedisData redisData,
-            OutputStream outputStream
+            OutputStream outputStream,
+            TransactionState transactionState
     ) throws IOException {
 
         if (args.size() == 1) {

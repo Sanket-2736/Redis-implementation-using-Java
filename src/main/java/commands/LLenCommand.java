@@ -1,5 +1,6 @@
 package commands;
 
+import commands.transactions.TransactionState;
 import storage.RedisData;
 import utils.RespUtil;
 
@@ -12,7 +13,8 @@ import java.util.Map;
 public class LLenCommand implements Command{
 
     @Override
-    public void execute(List<String> args, RedisData redisData, OutputStream outputStream) throws IOException {
+    public void execute(List<String> args, RedisData redisData, OutputStream outputStream,
+                        TransactionState transactionState) throws IOException {
         if(args.size() != 1) return;
 
         String key = args.get(0);
