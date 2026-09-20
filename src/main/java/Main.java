@@ -9,12 +9,18 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 public class Main {
 
     private static final RedisData redisData =
-            new RedisData();
+            new RedisData(
+                    new HashMap<>(),
+                    new HashMap<>(),
+                    new HashMap<>(),
+                    new HashMap<>()
+            );
 
     private static final CommandRegistry commandRegistry =
             new CommandRegistry();

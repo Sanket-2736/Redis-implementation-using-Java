@@ -88,4 +88,10 @@ public class RespUtil {
                 "*-1\r\n".getBytes(StandardCharsets.UTF_8)
         );
     }
+
+    public static void writeSimpleError(OutputStream outputStream, String message) throws IOException{
+        outputStream.write(
+                ("-ERR" + message + "\r\n").getBytes(StandardCharsets.UTF_8)
+        );
+    }
 }
