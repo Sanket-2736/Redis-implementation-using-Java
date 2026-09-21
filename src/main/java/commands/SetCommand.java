@@ -33,6 +33,8 @@ public class SetCommand implements Command {
                 redisData.getExpiry();
 
         data.put(key, value);
+        redisData.markModified(key);
+
 
         // Remove old expiry
         expiry.remove(key);

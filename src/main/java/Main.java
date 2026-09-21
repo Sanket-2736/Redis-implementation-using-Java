@@ -15,13 +15,21 @@ import java.util.HashMap;
 import java.util.List;
 
 public class Main {
+    private static String role = "master";
+    private static String replicationId =
+            "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb";
 
+    private static long replicationOffset = 0;
     private static final RedisData redisData =
             new RedisData(
                     new HashMap<>(),
                     new HashMap<>(),
                     new HashMap<>(),
-                    new HashMap<>()
+                    new HashMap<>(),
+                    new HashMap<>(),
+                    role,
+                    replicationId,
+                    replicationOffset
             );
 
     private static final CommandRegistry commandRegistry =
@@ -86,9 +94,17 @@ public class Main {
             Socket clientSocket
     ) {
 
-        try {
+        /*
+         * IMPORTANT:
+         * Each client gets its own TransactionState.
+         *
+         * This means multiple clients can have independent
+         * transactions at the same time.
+         */
+        TransactionState transactionState =
+                new TransactionState();
 
-            TransactionState transactionState = new TransactionState();
+        try {
 
             InputStream inputStream =
                     clientSocket.getInputStream();
@@ -97,6 +113,7 @@ public class Main {
                     clientSocket.getOutputStream();
 
             while (true) {
+
                 String arrayLine =
                         readLine(inputStream);
 
@@ -126,8 +143,7 @@ public class Main {
                 }
 
                 String commandName =
-                        elements.get(0)
-                                .toUpperCase();
+                        elements.get(0).toUpperCase();
 
                 List<String> args =
                         elements.subList(
@@ -141,13 +157,31 @@ public class Main {
                         );
 
                 if (command != null) {
-                    if (transactionState.isInTransaction() && !commandName.equalsIgnoreCase("EXEC") && !commandName.equalsIgnoreCase("MULTI")){
+
+                    /*
+                     * If we're inside MULTI, queue commands
+                     * instead of executing them.
+                     *
+                     * MULTI, EXEC and DISCARD must execute
+                     * immediately because they control the
+                     * transaction itself.
+                     */
+                    if (transactionState.isInTransaction()
+                            && !commandName.equals("MULTI")
+                            && !commandName.equals("EXEC")
+                            && !commandName.equals("WATCH")
+                            && !commandName.equals("UNWATCH")
+                            && !commandName.equals("DISCARD")) {
+
                         transactionState.queueCommand(elements);
+
                         RespUtil.writeSimpleString(
                                 outputStream,
                                 "QUEUED"
                         );
+
                     } else {
+
                         command.execute(
                                 args,
                                 redisData,
@@ -160,14 +194,19 @@ public class Main {
                 outputStream.flush();
             }
 
-            clientSocket.close();
-
         } catch (IOException e) {
 
             System.out.println(
                     "Client IOException: "
                             + e.getMessage()
             );
+
+        } finally {
+
+            try {
+                clientSocket.close();
+            } catch (IOException ignored) {
+            }
         }
     }
 
@@ -179,10 +218,23 @@ public class Main {
 
         int port = 6379;
 
+        for(int i = 0; i < args.length; i++){
+            if(args[i].equals("--port") && (i + 1) < args.length){
+                port = Integer.parseInt(args[i + 1]);
+                i++;
+            }
+
+            if (args[i].equals("--replicaof") && i + 1 < args.length) {
+                role = "slave";
+                i++;
+            }
+        }
+
         try {
 
             ServerSocket serverSocket =
                     new ServerSocket(port);
+            System.out.println("Redis server started on port: " + port);
 
             serverSocket.setReuseAddress(true);
 

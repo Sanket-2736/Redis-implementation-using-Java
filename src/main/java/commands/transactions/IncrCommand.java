@@ -19,6 +19,7 @@ public class IncrCommand implements Command {
 
         if(!data.containsKey(key)) {
             data.put(key, String.valueOf(1));
+            redisData.markModified(key);
             RespUtil.writeInteger(outputStream, 1);
         } else {
             String val = data.get(key);
@@ -27,6 +28,7 @@ public class IncrCommand implements Command {
                 int num = Integer.parseInt(val);
                 num++;
                 data.put(key, String.valueOf(num));
+                redisData.markModified(key);
                 RespUtil.writeInteger(outputStream, num);
             } catch (NumberFormatException e) {
                 RespUtil.writeSimpleError(

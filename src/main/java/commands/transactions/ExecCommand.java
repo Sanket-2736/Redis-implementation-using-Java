@@ -9,6 +9,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.List;
+import java.util.Map;
 
 public class ExecCommand implements Command {
     private final CommandRegistry commandRegistry;
@@ -33,6 +34,18 @@ public class ExecCommand implements Command {
             );
 
             return;
+        }
+
+        for(Map.Entry<String, Long> entry : transactionState.getWatchedKeys().entrySet()){
+            String key = entry.getKey();
+            long watchedVersion = entry.getValue();
+            long currentVersion = redisData.getKeyVersion(key);
+
+            if(currentVersion != watchedVersion){
+                transactionState.endTransaction();
+                RespUtil.writeNullArray(outputStream);
+                return;
+            }
         }
 
         List<List<String>> queuedCommands = transactionState.getQueuedCommands();
