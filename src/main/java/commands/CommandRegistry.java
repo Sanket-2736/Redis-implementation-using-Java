@@ -1,8 +1,6 @@
 package commands;
 
-import commands.optimistic_locking.InfoCommand;
-import commands.optimistic_locking.UnwatchCommand;
-import commands.optimistic_locking.WatchCommand;
+import commands.optimistic_locking.*;
 import commands.transactions.DiscardCommand;
 import commands.transactions.ExecCommand;
 import commands.transactions.IncrCommand;
@@ -46,7 +44,9 @@ public class CommandRegistry {
         commands.put("WATCH", new WatchCommand());
         commands.put("UNWATCH", new UnwatchCommand());
         commands.put("INFO", new InfoCommand());
-
+        commands.put("REPLCONF", new ReplConfCommand());
+        commands.put("PSYNC", new PsyncCommand());
+        commands.put("WAIT", new WaitCommand());
     }
 
     public Command getCommand(String command) {
