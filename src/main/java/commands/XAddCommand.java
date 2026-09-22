@@ -155,27 +155,22 @@ public class XAddCommand implements Command {
                     StreamEntry lastEntry =
                             stream.get(stream.size() - 1);
 
-                    String[] lastParts =
-                            lastEntry.getId().split("-");
-
                     long lastTime =
-                            Long.parseLong(lastParts[0]);
+                            Long.parseLong(parts[0]);
 
                     long lastSequence =
-                            Long.parseLong(lastParts[1]);
+                            Long.parseLong(parts[1]);
 
-                    if (millisecondsTime < lastTime
-                            ||
-                            (millisecondsTime == lastTime
-                                    && sequenceNumber
-                                    <= lastSequence)) {
-
+                    if (millisecondsTime < lastTime) {
                         RespUtil.writeSimpleError(
                                 outputStream,
                                 "The ID specified in XADD is equal or smaller than the target stream top item"
                         );
-
                         return;
+                    }
+
+                    if (millisecondsTime == lastTime) {
+                        sequenceNumber = lastSequence + 1;
                     }
                 }
             }

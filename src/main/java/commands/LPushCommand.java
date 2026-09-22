@@ -21,10 +21,13 @@ public class LPushCommand implements Command{
 
         List<String > list = lists.computeIfAbsent(key, k -> new ArrayList<>());
         for(int i = 1; i < args.size(); i++){
-            list.add(args.get(i));
+            list.add(0, args.get(i));
         }
-        redisData.notifyAll();
+        
+        synchronized (redisData){
+            redisData.notifyAll();
+        }
 
-        RespUtil.writeArrayHeader(outputStream, list.size());
+        RespUtil.writeInteger(outputStream, list.size());
     }
 }

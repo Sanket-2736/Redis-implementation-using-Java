@@ -2,6 +2,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>io.codecrafters</groupId>
@@ -9,14 +10,15 @@
     <version>1.0</version>
 
     <properties>
-        <maven.compiler.source>25</maven.compiler.source>
-        <maven.compiler.target>25</maven.compiler.target>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <java.version>25</java.version>
+        <java.version>17</java.version>
         <lombok.version>1.18.48</lombok.version>
     </properties>
 
     <dependencies>
+
         <!-- Project Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -24,18 +26,21 @@
             <version>${lombok.version}</version>
             <scope>provided</scope>
         </dependency>
+
     </dependencies>
 
     <build>
         <plugins>
+
+            <!-- Maven Compiler Plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.13.0</version> <!-- Specified version to ensure annotationProcessorPaths works properly -->
+                <version>3.13.0</version>
+
                 <configuration>
-                    <compilerArgs>
-                        <arg>--enable-preview</arg>
-                    </compilerArgs>
+                    <release>17</release>
+
                     <annotationProcessorPaths>
                         <path>
                             <groupId>org.projectlombok</groupId>
@@ -45,35 +50,47 @@
                     </annotationProcessorPaths>
                 </configuration>
             </plugin>
+
+            <!-- Maven Assembly Plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
+
                 <configuration>
-                    <finalName>codecrafters-redis</finalName> <!-- Please do not change this final artifact name-->
+                    <finalName>codecrafters-redis</finalName>
+
                     <descriptorRefs>
                         <descriptorRef>jar-with-dependencies</descriptorRef>
                     </descriptorRefs>
+
                     <appendAssemblyId>false</appendAssemblyId>
+
                     <archive>
                         <manifest>
                             <addClasspath>true</addClasspath>
-                            <!-- This is the main class of your program which will be executed-->
-                            <mainClass>Server</mainClass>
+
+                            <!-- Main class of the Redis server -->
+                            <mainClass>server.Main</mainClass>
                         </manifest>
                     </archive>
+
                     <outputDirectory>${dir}</outputDirectory>
                 </configuration>
 
                 <executions>
                     <execution>
                         <id>make-assembly</id>
+
                         <phase>package</phase>
+
                         <goals>
                             <goal>single</goal>
                         </goals>
                     </execution>
                 </executions>
+
             </plugin>
+
         </plugins>
     </build>
 

@@ -634,12 +634,14 @@ public class Main {
                                 elements.size()
                         );
 
+                System.out.println("Received command: " + commandName + " args=" + args);
+
 
                 Command command =
                         commandRegistry.getCommand(
                                 commandName
                         );
-
+                System.out.println("Command found: " + (command != null));
 
                 // ------------------------------------------------
                 // Register replica connection on REPLCONF
@@ -702,6 +704,9 @@ public class Main {
                             propagateCommand(elements);
                         }
                     }
+                } else {
+                    String response = "-ERR unknown command '" + commandName + "'\r\n";
+                    outputStream.write(response.getBytes(StandardCharsets.UTF_8));
                 }
 
 
@@ -894,3 +899,7 @@ public class Main {
         }
     }
 }
+
+//~$ ip route | grep default
+//default via your_ip dev eth0 proto kernel
+//~$ redis-cli -2 -h your_ip -p 6379
