@@ -1,10 +1,12 @@
 package commands;
 
 import commands.optimistic_locking.*;
+import commands.rdb_persistence.KeysCommand;
 import commands.transactions.DiscardCommand;
 import commands.transactions.ExecCommand;
 import commands.transactions.IncrCommand;
 import commands.transactions.MultiCommand;
+import lombok.Getter;
 import replications.ReplicationManager;
 
 import java.util.HashMap;
@@ -13,7 +15,7 @@ import java.util.Map;
 public class CommandRegistry {
 
     private final Map<String, Command> commands = new HashMap<>();
-
+    @Getter
     private final ReplicationManager replicationManager;
 
     public CommandRegistry() {
@@ -56,13 +58,14 @@ public class CommandRegistry {
 
         // WAIT
         commands.put("WAIT", new WaitCommand(replicationManager));
+        commands.put("KEYS", new KeysCommand());
     }
 
     public Command getCommand(String command) {
         return commands.get(command.toUpperCase());
     }
 
-    public ReplicationManager getReplicationManager() {
-        return replicationManager;
-    }
+//    public ReplicationManager getReplicationManager() {
+//        return replicationManager;
+//    }
 }
