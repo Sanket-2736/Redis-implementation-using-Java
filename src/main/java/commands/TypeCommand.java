@@ -24,7 +24,6 @@ public class TypeCommand implements Command {
 
         String key = args.get(0);
 
-        // Check string values
         if (redisData.getData().containsKey(key)) {
             RespUtil.writeSimpleString(outputStream, "string");
             return;

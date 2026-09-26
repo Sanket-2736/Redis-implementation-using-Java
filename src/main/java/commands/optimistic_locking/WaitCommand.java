@@ -3,7 +3,6 @@ import commands.Command;
 import commands.transactions.TransactionState;
 import replications.ReplicationManager;
 import storage.RedisData;
-import replications.ReplicationManager;
 
 import java.io.IOException;
 import java.io.OutputStream;

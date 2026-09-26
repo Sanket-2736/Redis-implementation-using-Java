@@ -1,57 +1,116 @@
 package commands.rdb_persistence;
 
 import commands.Command;
+import commands.aof_persistance.AofConfig;
 import commands.transactions.TransactionState;
 import storage.RedisData;
+import utils.RespUtil;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 public class ConfigGetCommand implements Command {
-    private final RdbConfig rdbConfig;
 
-    public ConfigGetCommand(RdbConfig rdbConfig){
+    private final RdbConfig rdbConfig;
+    private final AofConfig aofConfig;
+
+    public ConfigGetCommand(
+            RdbConfig rdbConfig,
+            AofConfig aofConfig
+    ) {
         this.rdbConfig = rdbConfig;
+        this.aofConfig = aofConfig;
     }
 
     @Override
-    public void execute(List<String> args, RedisData redisData, OutputStream outputStream, TransactionState transactionState) throws IOException {
-        if(args.isEmpty()){
-            outputStream.write(
-                    "*0\r\n".getBytes(StandardCharsets.UTF_8)
-            );
+    public void execute(
+            List<String> args,
+            RedisData redisData,
+            OutputStream outputStream,
+            TransactionState transactionState
+    ) throws IOException {
+
+        if (args.isEmpty()) {
+            RespUtil.writeEmptyArray(outputStream);
+            outputStream.flush();
             return;
         }
 
-        String parameter = args.get(0).toLowerCase();
-        String value;
+        String parameter =
+                args.get(0).toLowerCase();
 
-        switch (parameter){
-            case "dir":
-                value = rdbConfig.getDir();
-                break;
+        String value =
+                getConfigValue(parameter);
 
-            case "dbfilename" :
-                value = rdbConfig.getDbfilename();
-                break;
-
-            default:
-                outputStream.write(
-                        "*0\r\n".getBytes(StandardCharsets.UTF_8)
-                );
-                return;
+        /*
+         * Unknown configuration option
+         */
+        if (value == null) {
+            RespUtil.writeEmptyArray(outputStream);
+            outputStream.flush();
+            return;
         }
 
-        byte[] parameterBytes = parameter.getBytes(StandardCharsets.UTF_8);
-        byte[] valueBytes = value.getBytes(StandardCharsets.UTF_8);
+        /*
+         * RESP:
+         *
+         * *2
+         * $<length>
+         * <parameter>
+         * $<length>
+         * <value>
+         */
+        RespUtil.writeArrayHeader(
+                outputStream,
+                2
+        );
 
+        RespUtil.writeBulkString(
+                outputStream,
+                parameter
+        );
 
+        RespUtil.writeBulkString(
+                outputStream,
+                value
+        );
 
-        String response = "*2\r\n" + "$" + parameterBytes.length + "\r\n" + parameter + "\r\n" + "$" + valueBytes.length + "\r\n" + value + "\r\n";
-
-        outputStream.write(response.getBytes(StandardCharsets.UTF_8));
         outputStream.flush();
+    }
+
+    private String getConfigValue(
+            String option
+    ) {
+
+        return switch (option) {
+
+            /*
+             * RDB configuration
+             */
+            case "dir" ->
+                    rdbConfig.getDir();
+
+            case "dbfilename" ->
+                    rdbConfig.getDbfilename();
+
+            /*
+             * AOF configuration
+             */
+            case "appendonly" ->
+                    aofConfig.getAppendonly();
+
+            case "appenddirname" ->
+                    aofConfig.getAppenddirname();
+
+            case "appendfilename" ->
+                    aofConfig.getAppendfilename();
+
+            case "appendfsync" ->
+                    aofConfig.getAppendfsync();
+
+            default ->
+                    null;
+        };
     }
 }
